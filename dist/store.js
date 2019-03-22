@@ -3,6 +3,7 @@
 /*!
  * koa-generic-session-mongo
  * Copyright(c) 2013 Pavel Vlasov <freakycue@gmail.com>
+ * Updated by NaviOcean
  * MIT Licensed
  */
 
@@ -17,6 +18,8 @@ var _classCallCheck = require('babel-runtime/helpers/class-call-check')['default
 var _extends = require('babel-runtime/helpers/extends')['default'];
 
 var _Promise = require('babel-runtime/core-js/promise')['default'];
+
+var _Object$assign = require('babel-runtime/core-js/object/assign')['default'];
 
 var _regeneratorRuntime = require('babel-runtime/regenerator')['default'];
 
@@ -60,9 +63,11 @@ var MongoStore = (function (_EventEmitter) {
     _classCallCheck(this, MongoStore);
 
     _get(Object.getPrototypeOf(MongoStore.prototype), 'constructor', this).call(this);
+    var url = options.url;
     var db = options.db;
     var collection = options.collection;
-    var url = options.url;
+    var host = options.host;
+    var port = options.port;
     var user = options.user;
     var password = options.password;
 
@@ -70,10 +75,14 @@ var MongoStore = (function (_EventEmitter) {
       throw new Error('url option is exclusive from host, port, db and ssl options, please include as a full url connection string');
     }
 
-    this.col = db && typeof db !== 'string' && typeof db.dropDatabase === 'function' ? this._initWithDb({ db: db, collection: collection }) : this._initWithUrl({
-      url: url || MongoStore._makeConnectionString(options),
+    this.col = db && typeof db !== 'string' && typeof db.dropDatabase === 'function' ? this._initWithDb({
+      db: db,
+      collection: collection
+    }) : this._initWithUrl({
+      url: MongoStore._makeConnectionString(options),
       user: user,
       password: password,
+      db: db,
       collection: collection
     });
 
@@ -117,29 +126,43 @@ var MongoStore = (function (_EventEmitter) {
       var url = _ref2.url;
       var user = _ref2.user;
       var password = _ref2.password;
+      var db = _ref2.db;
       var _ref2$collection = _ref2.collection;
       var collection = _ref2$collection === undefined ? DEFAULT_COLLECTION : _ref2$collection;
 
       return new _Promise(function (resolve, reject) {
-        new _mongodb.MongoClient().connect(url, function (err, db) {
+        var options = {
+          useNewUrlParser: true
+        };
+        if (user && password) {
+          options = _Object$assign({}, options, {
+            auth: {
+              authSource: "admin",
+              user: user.toString(),
+              password: password.toString()
+            }
+          });
+        }
+        new _mongodb.MongoClient(url, options).connect(function (err, client) {
           if (err) {
             reject(err);
             return;
           }
+          var db = client.db(db);
           var col = db.collection(collection);
-          if (user && password) {
-            db.authenticate(user, password, function (err, res) {
-              if (err) {
-                reject(err);
-              } else if (!res) {
-                reject(new Error('mongodb authentication failed'));
-              } else {
-                resolve(col);
-              }
-            });
-          } else {
-            resolve(col);
-          }
+          // if (user && password) {
+          //   db.authenticate(user, password, function (err, res) {
+          //     if (err) {
+          //       reject(err);
+          //     } else if (!res) {
+          //       reject(new Error('mongodb authentication failed'));
+          //     } else {
+          //       resolve(col);
+          //     }
+          //   });
+          // } else {
+          resolve(col);
+          // }
         });
       });
     }
@@ -165,7 +188,13 @@ var MongoStore = (function (_EventEmitter) {
             col = context$2$0.sent;
             findOne = (0, _thunkify2['default'])(col.findOne.bind(col));
             context$2$0.next = 6;
-            return findOne({ sid: sid }, { _id: 0, ttl: 0, sid: 0 });
+            return findOne({
+              sid: sid
+            }, {
+              _id: 0,
+              ttl: 0,
+              sid: 0
+            });
 
           case 6:
             return context$2$0.abrupt('return', context$2$0.sent);
@@ -199,13 +228,17 @@ var MongoStore = (function (_EventEmitter) {
 
           case 4:
             col = context$2$0.sent;
-            update = (0, _thunkify2['default'])(col.update.bind(col));
+            update = (0, _thunkify2['default'])(col.updateOne.bind(col));
 
             sess.sid = sid;
             sess.ttl = new Date((ttl || ('number' == typeof maxAge ? maxAge : ONE_DAY)) + Date.now());
 
             context$2$0.next = 10;
-            return update({ sid: sid }, sess, { upsert: true });
+            return update({
+              sid: sid
+            }, sess, {
+              upsert: true
+            });
 
           case 10:
             return context$2$0.abrupt('return', context$2$0.sent);
@@ -235,9 +268,11 @@ var MongoStore = (function (_EventEmitter) {
 
           case 2:
             col = context$2$0.sent;
-            remove = (0, _thunkify2['default'])(col.remove.bind(col));
+            remove = (0, _thunkify2['default'])(col.deleteOne.bind(col));
             context$2$0.next = 6;
-            return remove({ sid: sid });
+            return remove({
+              sid: sid
+            });
 
           case 6:
           case 'end':
@@ -279,8 +314,16 @@ var MongoStore = (function (_EventEmitter) {
           }
         }
 
-        col.ensureIndex({ ttl: 1 }, { expireAfterSeconds: 0 }, done);
-        col.ensureIndex({ sid: 1 }, { unique: true }, done);
+        col.createIndex({
+          ttl: 1
+        }, {
+          expireAfterSeconds: 0
+        }, done);
+        col.createIndex({
+          sid: 1
+        }, {
+          unique: true
+        }, done);
       });
     }
   }]);

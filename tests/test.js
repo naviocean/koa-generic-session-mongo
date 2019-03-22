@@ -1,6 +1,8 @@
 'use strict';
 
-import {MongoClient} from 'mongodb';
+import {
+  MongoClient
+} from 'mongodb';
 import MongoStore from '../src/store';
 import thunkify from 'thunkify';
 
@@ -8,12 +10,19 @@ const clone = (obj) => {
   return JSON.parse(JSON.stringify(obj));
 };
 
-const describeStore = (msg, storeOptions, options={}) => {
-  const {cleanDb=false} = options;
+const describeStore = (msg, storeOptions, options = {}) => {
+  const {
+    cleanDb = false
+  } = options;
   let store;
 
-  describe(msg, function() {
-    const sess = {cookie: {maxAge: 2000}, name: 'name'};
+  describe(msg, function () {
+    const sess = {
+      cookie: {
+        maxAge: 2000
+      },
+      name: 'name'
+    };
 
     before(function (done) {
       store = new MongoStore(typeof storeOptions === 'function' ? storeOptions() : storeOptions)
@@ -24,54 +33,69 @@ const describeStore = (msg, storeOptions, options={}) => {
         .on('error', done);
     });
 
-    it('collection name should be sessions (by default) or equal to collection (when option presented)', function *() {
+    it('collection name should be sessions (by default) or equal to collection (when option presented)', function* () {
       const name = storeOptions.collection || 'sessions'
       const result = (yield store.col).s.name;
       expect(result).to.deep.equal(name);
     });
 
-    it('should save session to db', function *() {
+    it('should save session to db', function* () {
       const result = yield store.set('123', clone(sess));
       //noinspection BadExpressionStatementJS
       expect(result).to.be.ok;
     });
 
-    it('should return saved session', function *() {
+    it('should return saved session', function* () {
       const result = yield store.get('123');
       expect(result).to.deep.equal(sess);
     });
 
-    it('should destroy session', function *() {
+    it('should destroy session', function* () {
       yield store.destroy('123');
       const result = yield store.get('123');
       //noinspection BadExpressionStatementJS
       expect(result).to.not.ok;
     });
 
-    it('should set ttl', function *() {
+    it('should set ttl', function* () {
       const sess = {
         name: 'name'
       };
       yield store.set('123', sess, 12345);
       const col = yield store.col;
-      const result = yield thunkify(col.findOne.bind(col))({sid: '123'}, {_id: 0});
+      const result = yield thunkify(col.findOne.bind(col))({
+        sid: '123'
+      }, {
+        _id: 0
+      });
       //noinspection BadExpressionStatementJS
       expect(result.ttl.valueOf()).to.be.ok;
     });
   });
 };
 
-describeStore('store from url with custom session name', {url: 'mongodb://127.0.0.1:27017/test', collection: 'custom_sessions'}, {cleanDb: true});
-describeStore('store from url with default session name', {url: 'mongodb://127.0.0.1:27017/test'}, {cleanDb: true});
+describeStore('store from url with custom session name', {
+  host: '127.0.0.1:27017',
+  db: 'test',
+  collection: 'custom_sessions'
+}, {
+  cleanDb: true
+});
+describeStore('store from url with default session name', {
+  host: '127.0.0.1:27017',
+  db: 'test'
+}, {
+  cleanDb: true
+});
 
-describe('test auth', function() {
+describe('test auth', function () {
   let db;
 
-  before(function *() {
-      db = yield thunkify(MongoClient.connect)('mongodb://127.0.0.1:27017/testauth');
+  before(function* () {
+    db = yield thunkify(MongoClient.connect)('mongodb://127.0.0.1:27017/testauth');
   });
 
-  it('should add user', function *() {
+  it('should add user', function* () {
     try {
       yield thunkify(db.removeUser.bind(db))('han');
     } catch (err) {
@@ -80,21 +104,33 @@ describe('test auth', function() {
     let user = yield thunkify(db.addUser.bind(db))('han', 'solo');
   });
 
-  describeStore('store from db object', () => {return {db}}, {cleanDb: true});
-
-  describeStore('auth store', {user: 'han', password: 'solo', db: 'testauth'});
-});
-
-describe('closed db', function() {
-  let db, store;
-
-  before(function *() {
-    db = yield thunkify(MongoClient.connect)('mongodb://127.0.0.1:27017/test');
-    yield thunkify(db.close.bind(db))();
-    store = new MongoStore({db});
+  describeStore('store from db object', () => {
+    return {
+      db
+    }
+  }, {
+    cleanDb: true
   });
 
-  it('should crush', function *() {
+  describeStore('auth store', {
+    user: 'han',
+    password: 'solo',
+    db: 'testauth'
+  });
+});
+
+describe('closed db', function () {
+  let db, store;
+
+  before(function* () {
+    db = yield thunkify(MongoClient.connect)('mongodb://127.0.0.1:27017/test');
+    yield thunkify(db.close.bind(db))();
+    store = new MongoStore({
+      db
+    });
+  });
+
+  it('should crush', function* () {
     let throwsError;
     try {
       yield store.get('123');
@@ -106,16 +142,36 @@ describe('closed db', function() {
 });
 
 describe('url info exclusive', function () {
-  it('should fail if host and url provided', function *() {
-    assert.throw(() => {new MongoStore({url: 'mongodb://127.0.0.1:27017', host: 'localhost'})});
+  it('should fail if host and url provided', function* () {
+    assert.throw(() => {
+      new MongoStore({
+        url: 'mongodb://127.0.0.1:27017',
+        host: 'localhost'
+      })
+    });
   });
-  it('should fail if port and url provided', function *() {
-    assert.throw(() => {new MongoStore({url: 'mongodb://127.0.0.1:27017', port: '27017'})});
+  it('should fail if port and url provided', function* () {
+    assert.throw(() => {
+      new MongoStore({
+        host: '127.0.0.1',
+        port: '27017'
+      })
+    });
   });
-  it('should fail if db and url provided', function *() {
-    assert.throw(() => {new MongoStore({url: 'mongodb://127.0.0.1:27017', db: 'admin'})});
+  it('should fail if db and url provided', function* () {
+    assert.throw(() => {
+      new MongoStore({
+        url: 'mongodb://127.0.0.1:27017',
+        db: 'admin'
+      })
+    });
   });
-  it('should fail if ssl and url provided', function *() {
-    assert.throw(() => {new MongoStore({url: 'mongodb://127.0.0.1:27017', ssl: true})});
+  it('should fail if ssl and url provided', function* () {
+    assert.throw(() => {
+      new MongoStore({
+        url: 'mongodb://127.0.0.1:27017',
+        ssl: true
+      })
+    });
   });
 });

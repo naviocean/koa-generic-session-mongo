@@ -3,11 +3,16 @@
 /*!
  * koa-generic-session-mongo
  * Copyright(c) 2013 Pavel Vlasov <freakycue@gmail.com>
+ * Updated by NaviOcean
  * MIT Licensed
  */
 
-import {EventEmitter} from 'events';
-import {MongoClient} from 'mongodb';
+import {
+  EventEmitter
+} from 'events';
+import {
+  MongoClient
+} from 'mongodb';
 import thunkify from 'thunkify';
 import debug from 'debug';
 
@@ -25,9 +30,11 @@ export default class MongoStore extends EventEmitter {
   constructor(options = {}) {
     super();
     const {
+      url,
       db,
       collection,
-      url,
+      host,
+      port,
       user,
       password
     } = options;
@@ -37,11 +44,15 @@ export default class MongoStore extends EventEmitter {
     }
 
     this.col = db && typeof db !== 'string' && typeof db.dropDatabase === 'function' ?
-      this._initWithDb({db, collection}) :
+      this._initWithDb({
+        db,
+        collection
+      }) :
       this._initWithUrl({
-        url: url || MongoStore._makeConnectionString(options),
+        url: MongoStore._makeConnectionString(options),
         user,
         password,
+        db,
         collection
       });
 
@@ -61,7 +72,10 @@ export default class MongoStore extends EventEmitter {
    * @returns {Promise.<*>}
    * @private
    */
-  _initWithDb({db, collection=DEFAULT_COLLECTION}) {
+  _initWithDb({
+    db,
+    collection = DEFAULT_COLLECTION
+  }) {
     return Promise.resolve(db.collection(collection));
   }
 
@@ -74,32 +88,56 @@ export default class MongoStore extends EventEmitter {
    * @returns {Promise}
    * @private
    */
-  _initWithUrl({url, user, password, collection=DEFAULT_COLLECTION}) {
+  _initWithUrl({
+    url,
+    user,
+    password,
+    db,
+    collection = DEFAULT_COLLECTION
+  }) {
     return new Promise((resolve, reject) => {
-      new MongoClient().connect(url, function (err, db) {
+      let options = {
+        useNewUrlParser: true
+      }
+      if (user && password) {
+        options = Object.assign({}, options, {
+          auth: {
+            authSource: "admin",
+            user: user.toString(),
+            password: password.toString(),
+          }
+        })
+      }
+      new MongoClient(url, options).connect(function (err, client) {
         if (err) {
           reject(err);
           return;
         }
+        var db = client.db(db);
         const col = db.collection(collection);
-        if (user && password) {
-          db.authenticate(user, password, function (err, res) {
-            if (err) {
-              reject(err);
-            } else if (!res) {
-              reject(new Error('mongodb authentication failed'));
-            } else {
-              resolve(col);
-            }
-          });
-        } else {
-          resolve(col);
-        }
+        // if (user && password) {
+        //   db.authenticate(user, password, function (err, res) {
+        //     if (err) {
+        //       reject(err);
+        //     } else if (!res) {
+        //       reject(new Error('mongodb authentication failed'));
+        //     } else {
+        //       resolve(col);
+        //     }
+        //   });
+        // } else {
+        resolve(col);
+        // }
       });
     })
   }
 
-  static _makeConnectionString({host='127.0.0.1', port=27017, db='test', ssl=false}) {
+  static _makeConnectionString({
+    host = '127.0.0.1',
+    port = 27017,
+    db = 'test',
+    ssl = false
+  }) {
     return `mongodb://${host}:${port}/${db}?ssl=${ssl}`;
   }
 
@@ -120,8 +158,16 @@ export default class MongoStore extends EventEmitter {
         }
       }
 
-      col.ensureIndex({ttl: 1}, {expireAfterSeconds: 0}, done);
-      col.ensureIndex({sid: 1}, {unique: true}, done);
+      col.createIndex({
+        ttl: 1
+      }, {
+        expireAfterSeconds: 0
+      }, done);
+      col.createIndex({
+        sid: 1
+      }, {
+        unique: true
+      }, done);
     });
   }
 
@@ -132,11 +178,17 @@ export default class MongoStore extends EventEmitter {
    * @param {Function} fn
    * @api public
    */
-  *get(sid) {
+  * get(sid) {
     const col = yield this.col;
     const findOne = thunkify(col.findOne.bind(col));
 
-    return yield findOne({sid: sid}, {_id: 0, ttl: 0, sid: 0});
+    return yield findOne({
+      sid: sid
+    }, {
+      _id: 0,
+      ttl: 0,
+      sid: 0
+    });
   }
 
   /**
@@ -146,18 +198,24 @@ export default class MongoStore extends EventEmitter {
    * @param {Session} sess
    * @api public
    */
-  *set(sid, sess, ttl) {
+  * set(sid, sess, ttl) {
     // clone original sess
-    sess = {...sess};
+    sess = {
+      ...sess
+    };
     const maxAge = sess.cookie && (sess.cookie.maxAge || sess.cookie.maxage);
     const col = yield this.col;
-    const update = thunkify(col.update.bind(col));
+    const update = thunkify(col.updateOne.bind(col));
 
     sess.sid = sid;
-    sess.ttl = new Date((ttl || ('number' == typeof maxAge
-      ? maxAge : ONE_DAY)) + Date.now());
+    sess.ttl = new Date((ttl || ('number' == typeof maxAge ?
+      maxAge : ONE_DAY)) + Date.now());
 
-    return yield update({sid: sid}, sess, {upsert: true});
+    return yield update({
+      sid: sid
+    }, sess, {
+      upsert: true
+    });
   }
 
   /**
@@ -166,10 +224,12 @@ export default class MongoStore extends EventEmitter {
    * @param {String} sid
    * @api public
    */
-  *destroy(sid) {
+  * destroy(sid) {
     const col = yield this.col;
-    const remove = thunkify(col.remove.bind(col));
+    const remove = thunkify(col.deleteOne.bind(col));
 
-    yield remove({sid: sid});
+    yield remove({
+      sid: sid
+    });
   }
 }
