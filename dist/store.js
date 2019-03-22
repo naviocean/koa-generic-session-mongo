@@ -79,7 +79,7 @@ var MongoStore = (function (_EventEmitter) {
       db: db,
       collection: collection
     }) : this._initWithUrl({
-      url: MongoStore._makeConnectionString(options),
+      url: url || MongoStore._makeConnectionString(options),
       user: user,
       password: password,
       db: db,

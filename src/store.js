@@ -49,7 +49,7 @@ export default class MongoStore extends EventEmitter {
         collection
       }) :
       this._initWithUrl({
-        url: MongoStore._makeConnectionString(options),
+        url: url || MongoStore._makeConnectionString(options),
         user,
         password,
         db,
